@@ -15,8 +15,10 @@ def test_cited_indices_order_and_bounds():
 
 
 def test_build_citations_falls_back_to_all_when_uncited():
-    hits = [(Document("aaa", metadata={"source": "a.pdf", "page": 1}), 0.9),
-            (Document("bbb", metadata={"source": "b.pdf", "page": 4}), 0.5)]
+    hits = [
+        (Document("aaa", metadata={"source": "a.pdf", "page": 1}), 0.9),
+        (Document("bbb", metadata={"source": "b.pdf", "page": 4}), 0.5),
+    ]
     assert [c.index for c in build_citations("no markers", hits)] == [1, 2]
     cites = build_citations("see [2]", hits)
     assert len(cites) == 1 and cites[0].file_name == "b.pdf" and cites[0].page == 4
@@ -93,9 +95,9 @@ def test_ask_returns_cited_sources_and_updates_memory(settings, embeddings, sola
 
 def test_follow_up_is_condensed_using_history(settings, embeddings, solar_pdf):
     llm = fake_llm(
-        "Panels convert sunlight [1].",                     # turn 1 answer
-        "What is the main limitation of solar power?",      # condense rewrite
-        "Intermittency at night [1].",                      # turn 2 answer
+        "Panels convert sunlight [1].",  # turn 1 answer
+        "What is the main limitation of solar power?",  # condense rewrite
+        "Intermittency at night [1].",  # turn 2 answer
     )
     p = make_pipeline(settings, embeddings, llm)
     p.ingest_pdf(solar_pdf, "solar.pdf")

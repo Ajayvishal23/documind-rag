@@ -1,10 +1,36 @@
 [theme]
-base = "dark"
-primaryColor = "#10a37f"
-font = "sans serif"
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#F1F5F9"
+textColor = "#0F172A"
+linkColor = "#2563EB"
+borderColor = "#E2E8F0"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "12px"
+buttonRadius = "8px"
+baseFontSize = 14
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+headingFontSizes = ["1.625rem", "1.25rem", "1.0625rem", "1rem", "0.9375rem", "0.875rem"]
+codeFont = "monospace"
+chartCategoricalColors = ["#2563EB", "#1E293B", "#64748B", "#93C5FD", "#0EA5E9", "#CBD5E1"]
+dataframeHeaderBackgroundColor = "#F8FAFC"
+dataframeHeaderTextColor = "#475569"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#334155"
+borderColor = "#E2E8F0"
+
+[client]
+toolbarMode = "minimal"
 
 [server]
-maxUploadSize = 200
+maxUploadSize = 50
 headless = true
 
 [browser]

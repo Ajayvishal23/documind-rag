@@ -10,6 +10,7 @@ import logging
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -26,7 +27,7 @@ from documind.vectorstore import VectorStore
 logger = logging.getLogger(__name__)
 
 _CITE_RE = re.compile(r"\[(\d+)\]")
-NO_DOCS_MESSAGE = "Please upload at least one PDF in the sidebar so I have something to answer from."
+NO_DOCS_MESSAGE = "This workspace has no documents yet. Upload documents to begin an analysis."
 
 
 def format_context(docs: list[Document]) -> str:
@@ -88,8 +89,9 @@ class StreamingAnswer:
 
 
 class RAGPipeline:
-    def __init__(self, settings: Settings, embeddings: Embeddings, llm: BaseChatModel | None,
-                 persist: bool = True) -> None:
+    def __init__(
+        self, settings: Settings, embeddings: Embeddings, llm: BaseChatModel | None, persist: bool = True
+    ) -> None:
         self.settings = settings
         self.llm = llm
         self.store = VectorStore(
@@ -113,8 +115,14 @@ class RAGPipeline:
             return IngestReport(file_name, 0, 0, skipped=True, reason=str(exc))
 
         if not pages:
-            return IngestReport(file_name, 0, 0, skipped=True,
-                                reason="no extractable text (scanned PDF? try OCR first)")
+            return IngestReport(
+                file_name, 0, 0, skipped=True, reason="no extractable text (scanned PDF? try OCR first)"
+            )
+
+        uploaded_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        for page in pages:
+            page.metadata["uploaded_at"] = uploaded_at
+            page.metadata["file_size"] = len(data)
 
         chunks = chunk_documents(pages, self.settings.chunk_size, self.settings.chunk_overlap)
         added = self.store.add_chunks(chunks)
@@ -122,11 +130,12 @@ class RAGPipeline:
         return IngestReport(file_name, pages[0].metadata["total_pages"], added)
 
     # -------------------------------------------------------------- retrieval
-    def condense(self, question: str, memory: ConversationMemory) -> str:
+    def condense(self, question: str, memory: ConversationMemory, llm: BaseChatModel | None = None) -> str:
         """Rewrite a follow-up into a standalone question (skipped on turn 1)."""
-        if len(memory) == 0 or self.llm is None:
+        llm = llm or self.llm
+        if len(memory) == 0 or llm is None:
             return question
-        chain = CONDENSE_PROMPT | self.llm | StrOutputParser()
+        chain = CONDENSE_PROMPT | llm | StrOutputParser()
         try:
             rewritten = chain.invoke({"history": memory.messages(), "question": question}).strip()
             return rewritten or question
@@ -134,39 +143,59 @@ class RAGPipeline:
             logger.warning("Condense step failed, using raw question: %s", exc)
             return question
 
-    def retrieve(self, query: str, file_hashes: list[str] | None = None) -> list[tuple[Document, float | None]]:
+    def retrieve(
+        self, query: str, file_hashes: list[str] | None = None, top_k: int | None = None, search_type: str | None = None
+    ) -> list[tuple[Document, float | None]]:
         s = self.settings
-        hits = self.store.search(query, k=s.top_k, search_type=s.search_type, fetch_k=s.fetch_k,
-                                 file_hashes=file_hashes)
-        if s.search_type == "similarity" and s.score_threshold > 0:
+        search_type = search_type or s.search_type
+        hits = self.store.search(
+            query, k=top_k or s.top_k, search_type=search_type, fetch_k=s.fetch_k, file_hashes=file_hashes
+        )
+        if search_type == "similarity" and s.score_threshold > 0:
             hits = [(d, sc) for d, sc in hits if sc is not None and sc >= s.score_threshold]
         return hits
 
     # -------------------------------------------------------------- answering
-    def ask_stream(self, question: str, memory: ConversationMemory,
-                   file_hashes: list[str] | None = None) -> StreamingAnswer:
-        if self.llm is None:
+    def ask_stream(
+        self,
+        question: str,
+        memory: ConversationMemory,
+        file_hashes: list[str] | None = None,
+        llm: BaseChatModel | None = None,
+        top_k: int | None = None,
+        search_type: str | None = None,
+    ) -> StreamingAnswer:
+        """Retrieve and start streaming an answer.
+
+        ``llm``, ``top_k`` and ``search_type`` override the pipeline defaults for this call only,
+        so a shared (cached) pipeline can serve users with different preferences.
+        """
+        llm = llm or self.llm
+        if llm is None:
             raise RuntimeError("No LLM configured")
 
         if self.store.count() == 0:
             return StreamingAnswer(question, question, [], iter([NO_DOCS_MESSAGE]), self, memory)
 
-        standalone = self.condense(question, memory)
-        hits = self.retrieve(standalone, file_hashes)
+        standalone = self.condense(question, memory, llm)
+        hits = self.retrieve(standalone, file_hashes, top_k, search_type)
         if not hits:
-            msg = "I couldn't find anything relevant in the uploaded documents."
+            msg = "No relevant passages were found in this workspace's documents."
             return StreamingAnswer(question, standalone, [], iter([msg]), self, memory)
 
-        chain = ANSWER_PROMPT | self.llm | StrOutputParser()
-        tokens = chain.stream({
-            "context": format_context([d for d, _ in hits]),
-            "history": memory.messages(),
-            "question": question,
-        })
+        chain = ANSWER_PROMPT | llm | StrOutputParser()
+        tokens = chain.stream(
+            {
+                "context": format_context([d for d, _ in hits]),
+                "history": memory.messages(),
+                "question": question,
+            }
+        )
         return StreamingAnswer(question, standalone, hits, tokens, self, memory)
 
-    def ask(self, question: str, memory: ConversationMemory,
-            file_hashes: list[str] | None = None) -> ChatAnswer:
+    def ask(
+        self, question: str, memory: ConversationMemory, file_hashes: list[str] | None = None, **overrides
+    ) -> ChatAnswer:
         """Non-streaming convenience wrapper (used by tests / CLI)."""
-        handle = self.ask_stream(question, memory, file_hashes)
+        handle = self.ask_stream(question, memory, file_hashes, **overrides)
         return handle.finalize("".join(handle.tokens))

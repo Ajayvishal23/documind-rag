@@ -1,4 +1,4 @@
-"""DocuMind — Streamlit entry point.
+"""DocuMind — document intelligence workspace.
 
 Run:  streamlit run app.py
 """
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import streamlit as st
 
-# Make ``src/`` importable without installing the package (Streamlit Cloud friendly).
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT / "src"))
 
 # Copy Streamlit secrets into env vars so config.py sees them (Streamlit Cloud).
 try:
@@ -23,141 +23,160 @@ try:
 except Exception:  # noqa: BLE001 – no secrets file locally is fine
     pass
 
-from documind.config import DEFAULT_MODELS, get_settings  # noqa: E402
-from documind.embeddings import get_embeddings  # noqa: E402
-from documind.llm import LLMConfigError, build_llm  # noqa: E402
-from documind.memory import ConversationMemory  # noqa: E402
-from documind.pipeline import RAGPipeline  # noqa: E402
-from documind.ui.components import render_empty_state, render_file_list, render_sources  # noqa: E402
+from documind.ui import actions, state  # noqa: E402
+from documind.ui.components import activity_feed, esc, initials, workspace_label  # noqa: E402
 from documind.ui.styles import CSS  # noqa: E402
+from documind.ui.views import activity, analysis, dashboard, documents, settings  # noqa: E402
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-st.set_page_config(page_title="DocuMind · Chat with your PDFs", page_icon="📚", layout="centered")
-st.markdown(CSS, unsafe_allow_html=True)
+st.set_page_config(
+    page_title="DocuMind · Document Intelligence",
+    page_icon=str(ROOT / "assets" / "icon.svg"),
+    layout="wide",
+    initial_sidebar_state="auto",
+)
+st.html(CSS)
+st.logo(str(ROOT / "assets" / "logo.svg"), icon_image=str(ROOT / "assets" / "icon.svg"), size="large")
 
-settings = get_settings()
+state.init_session()
+
+# --------------------------------------------------------------------------- navigation
+START = os.getenv("DOCUMIND_START_PAGE", "dashboard")  # landing page (also used by UI tests)
+pages = {
+    "dashboard": st.Page(
+        dashboard.render,
+        title="Dashboard",
+        icon=":material/space_dashboard:",
+        url_path="dashboard",
+        default=START == "dashboard",
+    ),
+    "documents": st.Page(
+        documents.render,
+        title="Documents",
+        icon=":material/folder_open:",
+        url_path="documents",
+        default=START == "documents",
+    ),
+    "analysis": st.Page(
+        analysis.render,
+        title="Analysis",
+        icon=":material/manage_search:",
+        url_path="analysis",
+        default=START == "analysis",
+    ),
+    "activity": st.Page(
+        activity.render, title="Activity", icon=":material/history:", url_path="activity", default=START == "activity"
+    ),
+    "settings": st.Page(
+        settings.render, title="Settings", icon=":material/settings:", url_path="settings", default=START == "settings"
+    ),
+}
+state.PAGES.update(pages)
+current = st.navigation(
+    {
+        "Workspace": [pages["dashboard"], pages["documents"], pages["analysis"]],
+        "Insights": [pages["activity"]],
+        "Administration": [pages["settings"]],
+    }
+)
+
+if nav_to := st.session_state.pop("_nav_to", None):
+    st.switch_page(pages[nav_to])
 
 
-# --------------------------------------------------------------------------- resources
-@st.cache_resource(show_spinner="Loading embedding model…")
-def load_pipeline() -> RAGPipeline:
-    embeddings = get_embeddings(settings.embedding_model, settings.embedding_device)
-    return RAGPipeline(settings, embeddings, llm=None)
+# --------------------------------------------------------------------------- sidebar footer
+def _sidebar() -> None:
+    files = state.pipeline().store.list_files()
+    n_pages = sum(f["pages"] for f in files)
+    capacity = 2000  # soft guide for a single free-tier workspace
+    pct = min(100, round(n_pages / capacity * 100))
+    with st.sidebar:
+        st.space("medium")
+        st.html(
+            f'<div class="dm-side-card"><b>{esc(workspace_label(state.current_workspace()))}</b><br>'
+            f"{len(files)} documents · {n_pages:,} pages"
+            f'<div class="dm-side-meter"><span style="width:{max(pct, 2)}%"></span></div>'
+            f'<span style="font-size:.75rem;color:#94A3B8">{pct}% of recommended index size</span></div>'
+        )
+        st.html(
+            '<div class="dm-side-foot"><a href="https://github.com/Ajayvishal23/documind-rag" target="_blank">'
+            "Documentation</a> · v2.0</div>"
+        )
 
 
-@st.cache_resource(show_spinner=False)
-def load_llm(provider: str, model: str):
-    os.environ["LLM_PROVIDER"] = provider
-    os.environ["LLM_MODEL"] = model
-    return build_llm(get_settings())
+# --------------------------------------------------------------------------- top bar
+def _on_search() -> None:
+    q = st.session_state.get("global_search", "").strip()
+    if q:
+        st.session_state.doc_query = q
+        st.session_state.global_search = ""
+        state.request_nav("documents")
 
 
-pipeline = load_pipeline()
+def _on_workspace() -> None:
+    choice = st.session_state.ws_select
+    if choice != state.current_workspace():
+        st.session_state.workspace = choice
+        st.toast(f"Switched to {workspace_label(choice)}", icon=":material/swap_horiz:")
 
-# --------------------------------------------------------------------------- session state
-ss = st.session_state
-ss.setdefault("messages", [])  # list[dict(role, content, sources)]
-ss.setdefault("memory", ConversationMemory(settings.memory_window))
-ss.setdefault("uploader_key", 0)
 
-# --------------------------------------------------------------------------- sidebar
-with st.sidebar:
-    st.markdown("## 📚 DocuMind")
-    if st.button("➕  New chat", use_container_width=True):
-        ss.messages = []
-        ss.memory.clear()
-        st.rerun()
+def _topbar() -> None:
+    p = state.prefs()
+    wss = state.workspaces()
+    if st.session_state.get("ws_select") != state.current_workspace():
+        st.session_state.ws_select = state.current_workspace()  # keep switcher in sync (e.g. after create)
+    with st.container(key="topbar"):
+        c = st.columns([2.2, 4.2, 3.4], vertical_alignment="center", gap="small", wrap=False)
+        with c[0]:
+            st.selectbox(
+                "Workspace",
+                wss,
+                key="ws_select",
+                format_func=workspace_label,
+                label_visibility="collapsed",
+                on_change=_on_workspace,
+            )
+        with c[1]:
+            st.text_input(
+                "Search",
+                key="global_search",
+                placeholder="Search documents…",
+                icon=":material/search:",
+                label_visibility="collapsed",
+                on_change=_on_search,
+            )
+        with c[2], st.container(horizontal=True, horizontal_alignment="right", vertical_alignment="center", wrap=False):
+            if st.button("New workspace", icon=":material/add:", type="tertiary", key="topbar-new-ws"):
+                actions.new_workspace_dialog()
+            with st.popover("", icon=":material/notifications:", help="Notifications", width="content"):
+                st.markdown("**Notifications**")
+                events = state.activity().events(limit=6)
+                if events:
+                    st.html(activity_feed(events))
+                else:
+                    st.caption("You're all caught up.")
+                st.page_link(pages["activity"], label="View all activity", icon=":material/history:")
+            name = p.display_name.strip()
+            with st.popover(
+                initials(name) if name else "",
+                icon=None if name else ":material/account_circle:",
+                help="Account",
+                width="content",
+            ):
+                st.html(
+                    f'<div style="font-weight:600">{esc(name or "Your account")}</div>'
+                    f'<div style="font-size:.8125rem;color:#64748B">{esc(p.role)} · '
+                    f"{esc(workspace_label(state.current_workspace()))}</div>"
+                )
+                st.divider()
+                st.page_link(pages["settings"], label="Settings", icon=":material/settings:")
+                st.page_link(pages["activity"], label="Activity log", icon=":material/history:")
+                if st.button("Reset analysis session", icon=":material/restart_alt:", type="tertiary"):
+                    state.reset_analysis_session()
+                    st.rerun()
 
-    st.markdown("### Documents")
-    uploads = st.file_uploader(
-        "Upload PDFs", type=["pdf"], accept_multiple_files=True,
-        key=f"uploader-{ss.uploader_key}", label_visibility="collapsed",
-    )
-    if uploads and st.button("Index documents", type="primary", use_container_width=True):
-        progress = st.progress(0.0, text="Starting…")
-        for i, f in enumerate(uploads, start=1):
-            progress.progress((i - 1) / len(uploads), text=f"Indexing {f.name}…")
-            report = pipeline.ingest_pdf(f.getvalue(), f.name)
-            if report.skipped:
-                st.warning(f"**{f.name}** skipped — {report.reason}")
-            else:
-                st.success(f"**{f.name}**: {report.pages} pages → {report.chunks} chunks")
-        progress.progress(1.0, text="Done")
-        ss.uploader_key += 1  # clear the uploader
-        st.rerun()
 
-    files = pipeline.store.list_files()
-    selected_hashes: list[str] | None = None
-    if files:
-        render_file_list(files)
-        names = {f["file_name"]: f["file_hash"] for f in files}
-        chosen = st.multiselect("Search only in", list(names), placeholder="All documents")
-        selected_hashes = [names[n] for n in chosen] or None
-
-        with st.expander("Manage"):
-            to_del = st.selectbox("Remove a document", ["—"] + list(names))
-            if to_del != "—" and st.button("Remove", use_container_width=True):
-                pipeline.store.delete_file(names[to_del])
-                st.rerun()
-            if st.button("🗑️ Clear all documents", use_container_width=True):
-                pipeline.store.reset()
-                ss.messages = []
-                ss.memory.clear()
-                st.rerun()
-
-    st.markdown("### Model")
-    providers = list(DEFAULT_MODELS)
-    provider = st.selectbox("Provider", providers, index=providers.index(settings.llm_provider)
-                            if settings.llm_provider in providers else 0)
-    model = st.text_input("Model", value=settings.llm_model if provider == settings.llm_provider and
-                          settings.llm_model else DEFAULT_MODELS[provider])
-    st.caption(f"Embeddings: `{settings.embedding_model.split('/')[-1]}` · top-k {settings.top_k} · "
-               f"{settings.search_type.upper()}")
-
-# --------------------------------------------------------------------------- LLM
-try:
-    pipeline.llm = load_llm(provider, model)
-    llm_error = None
-except LLMConfigError as exc:
-    pipeline.llm, llm_error = None, str(exc)
-except ImportError as exc:
-    pipeline.llm, llm_error = None, f"Provider package missing: {exc}. Run `pip install -r requirements.txt`."
-
-# --------------------------------------------------------------------------- chat history
-suggestion = None
-if not ss.messages:
-    suggestion = render_empty_state(has_docs=bool(files))
-
-for msg in ss.messages:
-    with st.chat_message(msg["role"], avatar="🧑" if msg["role"] == "user" else "📚"):
-        st.markdown(msg["content"])
-        if msg.get("sources"):
-            render_sources(msg["sources"])
-
-# --------------------------------------------------------------------------- input
-prompt = st.chat_input("Ask anything about your documents…", disabled=llm_error is not None) or suggestion
-if llm_error:
-    st.error(llm_error)
-
-if prompt:
-    ss.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="🧑"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant", avatar="📚"):
-        try:
-            with st.spinner("Searching your documents…"):
-                handle = pipeline.ask_stream(prompt, ss.memory, selected_hashes)
-            full = st.write_stream(handle.tokens)
-            full = full if isinstance(full, str) else "".join(map(str, full))
-            result = handle.finalize(full)
-            render_sources(result.sources)
-            if result.standalone_question != prompt:
-                st.caption(f"🔎 Searched for: *{result.standalone_question}*")
-            ss.messages.append({"role": "assistant", "content": full, "sources": result.sources})
-        except Exception as exc:  # noqa: BLE001 – surface errors in the chat
-            logging.exception("Answer failed")
-            err = f"⚠️ Something went wrong: `{exc}`"
-            st.error(err)
-            ss.messages.append({"role": "assistant", "content": err, "sources": []})
+_sidebar()
+_topbar()
+current.run()

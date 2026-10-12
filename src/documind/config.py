@@ -43,7 +43,7 @@ class Settings:
 
     # --- Storage -----------------------------------------------------------
     persist_dir: Path = field(default_factory=lambda: Path(_env("CHROMA_PERSIST_DIR", "./data/chroma")))
-    collection_name: str = field(default_factory=lambda: _env("CHROMA_COLLECTION", "documind"))
+    collection_name: str = field(default_factory=lambda: _env("CHROMA_COLLECTION", "general"))
 
     # --- Embeddings --------------------------------------------------------
     embedding_model: str = field(

@@ -66,8 +66,14 @@ class VectorStore:
             h = meta.get("file_hash", "?")
             row = files.setdefault(
                 h,
-                {"file_name": meta.get("source", "?"), "file_hash": h,
-                 "pages": meta.get("total_pages", 0), "chunks": 0},
+                {
+                    "file_name": meta.get("source", "?"),
+                    "file_hash": h,
+                    "pages": meta.get("total_pages", 0),
+                    "chunks": 0,
+                    "uploaded_at": meta.get("uploaded_at", ""),
+                    "file_size": meta.get("file_size", 0),
+                },
             )
             row["chunks"] += 1
         return sorted(files.values(), key=lambda r: r["file_name"].lower())
@@ -96,3 +102,16 @@ class VectorStore:
             )
             return [(d, None) for d in docs]
         return self._db.similarity_search_with_relevance_scores(query, k=k, filter=flt)
+
+
+def list_workspaces(persist_dir: Path | str) -> list[str]:
+    """Names of all Chroma collections (one collection = one workspace)."""
+    import chromadb
+
+    path = Path(persist_dir)
+    if not path.exists():
+        return []
+    client = chromadb.PersistentClient(path=str(path))
+    cols = client.list_collections()
+    # chromadb < 0.6 returns Collection objects, >= 0.6 returns names.
+    return sorted(c if isinstance(c, str) else c.name for c in cols)

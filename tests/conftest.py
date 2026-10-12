@@ -61,8 +61,14 @@ def fake_llm(*replies: str) -> GenericFakeChatModel:
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(persist_dir=tmp_path / "chroma", collection_name=f"test{abs(hash(tmp_path)) % 10**8}",
-                    chunk_size=300, chunk_overlap=40, top_k=3, search_type="similarity")
+    return Settings(
+        persist_dir=tmp_path / "chroma",
+        collection_name=f"test{abs(hash(tmp_path)) % 10**8}",
+        chunk_size=300,
+        chunk_overlap=40,
+        top_k=3,
+        search_type="similarity",
+    )
 
 
 @pytest.fixture
@@ -72,17 +78,21 @@ def embeddings() -> HashEmbeddings:
 
 @pytest.fixture
 def solar_pdf() -> bytes:
-    return make_pdf([
-        "Solar panels convert sunlight into electricity using photovoltaic cells. "
-        "Typical residential panel efficiency is between 18 and 22 percent.",
-        "The main limitation of solar power is intermittency: panels produce nothing at night "
-        "and output drops on cloudy days, so battery storage is often required.",
-    ])
+    return make_pdf(
+        [
+            "Solar panels convert sunlight into electricity using photovoltaic cells. "
+            "Typical residential panel efficiency is between 18 and 22 percent.",
+            "The main limitation of solar power is intermittency: panels produce nothing at night "
+            "and output drops on cloudy days, so battery storage is often required.",
+        ]
+    )
 
 
 @pytest.fixture
 def wind_pdf() -> bytes:
-    return make_pdf([
-        "Wind turbines generate electricity from moving air. Offshore wind farms benefit from "
-        "stronger and more consistent wind speeds than onshore sites.",
-    ])
+    return make_pdf(
+        [
+            "Wind turbines generate electricity from moving air. Offshore wind farms benefit from "
+            "stronger and more consistent wind speeds than onshore sites.",
+        ]
+    )

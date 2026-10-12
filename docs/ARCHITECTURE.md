@@ -8,8 +8,8 @@ grounded in those vectors.
 
 ```mermaid
 flowchart TB
-    UI["Presentation — app.py, ui/<br/>Streamlit chat, sidebar, citation cards"]
-    APP["Application — pipeline.py<br/>RAGPipeline: ingest_pdf · condense · retrieve · ask_stream"]
+    UI["Presentation — app.py, ui/<br/>app shell · views · design system · dialogs"]
+    APP["Application — pipeline.py · activity.py<br/>RAGPipeline: ingest_pdf · condense · retrieve · ask_stream"]
     DOM["Domain — schemas.py · prompts.py · memory.py"]
     INF["Infrastructure — ingestion/ · embeddings.py · vectorstore.py · llm.py"]
     CFG["config.py — env-driven Settings"]
@@ -20,7 +20,7 @@ flowchart TB
 
 | Layer | Responsibility | Depends on Streamlit? |
 |---|---|---|
-| Presentation | Rendering, session state, uploads, streaming display | Yes |
+| Presentation | Navigation, pages, design system, dialogs, session state | Yes |
 | Application | Orchestrates the RAG flow; returns typed results | No |
 | Domain | Data objects, prompts, memory | No |
 | Infrastructure | PDF parsing, embeddings, ChromaDB, LLM providers | No |
@@ -126,7 +126,7 @@ natural extension for very long chats.
 |---|---|---|
 | MiniLM-L6 embeddings | Free, fast on CPU, private | Lower recall than `bge-large`/OpenAI embeddings; English-centric |
 | pypdf | Pure Python, no system deps | No OCR, weak on complex tables/multi-column layouts |
-| Single shared collection | Simple | Not multi-tenant: all sessions see the same documents |
+| Workspaces = Chroma collections | Simple isolation per client/project | No authentication: anyone with the URL can open any workspace |
 | Window memory | Predictable cost | Forgets older turns |
 | Regex citations | Transparent, cheap | Relies on model following the format (strong models do) |
 
@@ -136,4 +136,32 @@ natural extension for very long chats.
 - **Hybrid search:** combine BM25 (`rank_bm25`) with vector hits via reciprocal-rank fusion.
 - **Evaluation:** RAGAS / a golden Q&A set run in CI to catch retrieval regressions.
 - **API:** wrap `RAGPipeline` in FastAPI; the Streamlit app becomes one client.
-- **Multi-tenant:** one Chroma collection per user/session id.
+- **Multi-tenant:** add authentication and map users to their own workspaces.
+
+## 7. Presentation layer
+
+```mermaid
+flowchart LR
+    APP[app.py<br/>st.navigation · top bar · sidebar] --> V1[views/dashboard]
+    APP --> V2[views/documents]
+    APP --> V3[views/analysis]
+    APP --> V4[views/activity]
+    APP --> V5[views/settings]
+    V1 & V2 & V3 & V4 & V5 --> C[components.py<br/>stat cards · tables · badges · feeds · skeletons]
+    V1 & V2 & V3 & V5 --> A[actions.py<br/>upload flow · modal dialogs]
+    V1 & V2 & V3 & V4 & V5 --> S[state.py<br/>session · cached pipeline per workspace · prefs]
+    C --> CSS[styles.py<br/>design tokens + component CSS]
+```
+
+- **Pages** are functions registered with `st.navigation`, grouped into Workspace / Insights /
+  Administration sections. `DOCUMIND_START_PAGE` sets the landing page (also used by the UI tests).
+- **Cards** are keyed containers (`st.container(key="card-…")`) styled through the `st-key-*` class
+  Streamlit adds, so real widgets (buttons, charts, inputs) can live inside styled surfaces.
+- **The document table** is built from zero-gap containers and columns, so every row can hold real
+  action buttons. Secondary columns are hidden on small screens.
+- **Static HTML** (stat cards, feeds, references) goes through `st.html`, which sanitises markup. Icons
+  are therefore data-URI images rather than inline SVG. All interpolated values are HTML-escaped.
+- **Model output** is rendered as Markdown after escaping `<` and `&`; `[n]` markers become styled
+  citation chips.
+- **Per-session preferences** (model, top-k, strategy, display name) are passed into the shared cached
+  pipeline per call, never written to it.

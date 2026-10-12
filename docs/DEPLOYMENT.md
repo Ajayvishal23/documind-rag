@@ -61,6 +61,7 @@ docker run -p 8501:8501 --env-file .env -v documind-data:/app/data documind
    ```toml
    GROQ_API_KEY = "gsk_..."
    LLM_PROVIDER = "groq"
+   DOCUMIND_USER_NAME = "Your Name"   # optional: greeting + profile menu
    ```
    `app.py` copies secrets into environment variables, so no code changes are needed.
 5. Deploy. Copy the `*.streamlit.app` URL into the README's **Live demo** link.
@@ -69,8 +70,8 @@ Notes
 - Free apps have ~1 GB RAM. MiniLM + Chroma fit comfortably; avoid large embedding models.
 - Storage is ephemeral — uploaded documents are wiped when the app sleeps/reboots. For a demo,
   that's fine (and a good privacy story).
-- The index is shared by all visitors. Add a note in the UI, or switch to per-session
-  collections (see ARCHITECTURE §6) before sharing widely.
+- Workspaces are visible to every visitor (there is no login). Use a dedicated demo workspace and
+  don't upload confidential documents to a public deployment.
 
 ## 4. Hugging Face Spaces
 
