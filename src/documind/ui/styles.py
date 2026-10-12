@@ -41,7 +41,7 @@ body { -webkit-font-smoothing: antialiased; }
 [data-testid="stHeader"] { background: transparent; height: 0; }
 [data-testid="stDecoration"] { display: none; }
 [data-testid="stMainBlockContainer"], .block-container {
-  max-width: 1320px; padding: 1.25rem 2.25rem 4rem 2.25rem;
+  max-width: 1320px; padding: 3.25rem 2.25rem 4rem 2.25rem; /* room for the host toolbar */
 }
 h1, h2, h3, h4 { color: var(--dm-text); letter-spacing: -0.015em; }
 hr { border-color: var(--dm-border) !important; margin: 0.75rem 0 !important; }
@@ -271,7 +271,7 @@ div[role="dialog"] { border-radius: 14px !important; box-shadow: var(--dm-shadow
 
 /* ---------- Responsive -------------------------------------------------- */
 @media (max-width: 1024px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding: 1rem 1.25rem 3rem; }
+  [data-testid="stMainBlockContainer"], .block-container { padding: 3.25rem 1.25rem 3rem; }
   .dm-hide-md { display: none !important; }
 }
 @media (max-width: 640px) {
