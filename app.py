@@ -177,6 +177,28 @@ def _topbar() -> None:
                     st.rerun()
 
 
+def _startup_check() -> None:
+    """Fail with a readable screen (not a traceback) if core services can't start."""
+    try:
+        state.pipeline()
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("Startup failed")
+        st.html(
+            '<h1 class="dm-page-title" style="margin-top:2rem">DocuMind could not start</h1>'
+            '<p class="dm-page-sub">The document index or embedding model failed to load. '
+            "Details are below and in the app logs.</p>"
+        )
+        st.code(f"{type(exc).__name__}: {exc}", language=None, wrap_lines=True)
+        st.caption(
+            "Common causes: the embedding model could not be downloaded (network or memory limits), "
+            "or the host's SQLite is too old for ChromaDB. See docs/DEPLOYMENT.md → Troubleshooting."
+        )
+        if st.button("Retry", type="primary", icon=":material/refresh:"):
+            st.rerun()
+        st.stop()
+
+
+_startup_check()
 _sidebar()
 _topbar()
 current.run()

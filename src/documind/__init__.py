@@ -1,3 +1,7 @@
-"""DocuMind — multi-PDF conversational RAG."""
+"""DocuMind — document intelligence workspace (multi-PDF RAG)."""
 
-__version__ = "1.0.0"
+from documind.compat import ensure_modern_sqlite
+
+ensure_modern_sqlite()  # must run before anything imports chromadb
+
+__version__ = "2.0.1"

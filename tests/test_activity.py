@@ -32,3 +32,27 @@ def test_format_answer_escapes_html_and_styles_citations():
 def test_human_size():
     assert human_size(0) == "—"
     assert human_size(2048) == "2.0 KB"
+
+
+def test_sqlite_shim_is_noop_on_modern_sqlite():
+    import sqlite3
+
+    from documind.compat import MIN_SQLITE, ensure_modern_sqlite
+
+    assert sqlite3.sqlite_version_info >= MIN_SQLITE
+    assert ensure_modern_sqlite() is False
+
+
+def test_sqlite_shim_swaps_when_old(monkeypatch):
+    import sqlite3
+    import sys
+    import types
+
+    from documind import compat
+
+    fake = types.ModuleType("pysqlite3")
+    monkeypatch.setattr(compat.sqlite3, "sqlite_version_info", (3, 31, 1))
+    monkeypatch.setitem(sys.modules, "pysqlite3", fake)
+    monkeypatch.setitem(sys.modules, "sqlite3", sqlite3)
+    assert compat.ensure_modern_sqlite() is True
+    assert sys.modules["sqlite3"] is fake

@@ -16,7 +16,13 @@ langchain-ollama>=0.2,<2
 
 # --- Vector DB, embeddings, PDF -------------------------------------------
 chromadb>=0.5,<2
+# Newer SQLite for ChromaDB on hosts whose system SQLite is < 3.35 (e.g. Streamlit Cloud).
+pysqlite3-binary>=0.5; platform_system == "Linux" and platform_machine == "x86_64"
 sentence-transformers>=3.0,<6
+# CPU-only PyTorch: the default Linux wheel pulls ~3 GB of CUDA libraries that free
+# hosts can't fit. Remove these two lines if you deploy on a GPU machine.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
 pypdf>=5.0,<7
 
 # --- Utilities -------------------------------------------------------------

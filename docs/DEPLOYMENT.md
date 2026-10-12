@@ -132,5 +132,5 @@ location / {
 | "no extractable text" on upload | The PDF is scanned images — run OCR first (e.g. `ocrmypdf in.pdf out.pdf`) |
 | App killed / out of memory on free host | Use CPU torch, keep MiniLM, lower `CHUNK_SIZE` batch, or upgrade instance |
 | Slow first question | Embedding model loading; cached after the first run |
-| `sqlite3` version error from Chroma (some Linux hosts) | `pip install pysqlite3-binary` and add at the top of `app.py`: `__import__('pysqlite3'); import sys; sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')` |
+| "Chroma requires sqlite3 >= 3.35" | Handled automatically: `pysqlite3-binary` is installed on Linux and swapped in by `documind/compat.py` when the system SQLite is too old |
 | Answers ignore new uploads | Click **Index documents** after selecting files |
