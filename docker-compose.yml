@@ -1,0 +1,12 @@
+services:
+  documind:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file: .env
+    volumes:
+      - documind-data:/app/data   # persists the ChromaDB index
+    restart: unless-stopped
+
+volumes:
+  documind-data:

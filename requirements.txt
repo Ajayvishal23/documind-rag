@@ -1,0 +1,21 @@
+# --- UI -------------------------------------------------------------------
+streamlit>=1.40,<2
+
+# --- LangChain core + integrations ----------------------------------------
+langchain-core>=0.3,<2
+langchain-text-splitters>=0.3,<2
+langchain-chroma>=0.2,<2
+langchain-huggingface>=0.1,<2
+
+# --- LLM providers (install the one you use; Groq is the default) ---------
+langchain-groq>=0.2,<2
+langchain-openai>=0.2,<2
+langchain-ollama>=0.2,<2
+
+# --- Vector DB, embeddings, PDF -------------------------------------------
+chromadb>=0.5,<2
+sentence-transformers>=3.0,<6
+pypdf>=5.0,<7
+
+# --- Utilities -------------------------------------------------------------
+python-dotenv>=1.0
