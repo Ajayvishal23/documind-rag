@@ -15,11 +15,12 @@ import streamlit as st
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 
-# Copy Streamlit secrets into env vars so config.py sees them (Streamlit Cloud).
+# Copy Streamlit secrets into env vars on every run so config.py sees them, and so an
+# edited secret (e.g. a replaced API key) takes effect without restarting the app.
 try:
     for _k, _v in st.secrets.items():
         if isinstance(_v, str):
-            os.environ.setdefault(_k, _v.strip())  # stray spaces/newlines break API keys
+            os.environ[_k] = _v.strip()  # stray spaces/newlines break API keys
 except Exception:  # noqa: BLE001 – no secrets file locally is fine
     pass
 

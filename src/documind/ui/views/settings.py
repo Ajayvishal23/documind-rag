@@ -6,7 +6,16 @@ import streamlit as st
 
 from documind.config import DEFAULT_MODELS
 from documind.ui import actions, state
-from documind.ui.components import card_title, esc, html_block, human_size, kv_list, page_header, workspace_label
+from documind.ui.components import (
+    callout,
+    card_title,
+    esc,
+    html_block,
+    human_size,
+    kv_list,
+    page_header,
+    workspace_label,
+)
 
 PROVIDER_LABELS = {"groq": "Groq (hosted, free tier)", "openai": "OpenAI", "ollama": "Ollama (self-hosted)"}
 
@@ -61,6 +70,13 @@ def render() -> None:
         )
         if err:
             st.caption(f":red[{err}]")
+        if st.button("Test connection", icon=":material/network_check:", disabled=llm is None):
+            with st.spinner("Contacting provider…"):
+                ok, msg = state.test_connection()
+            if ok:
+                st.success(msg, icon=":material/check_circle:")
+            else:
+                callout(msg, "warning")
 
     with retrieval, st.container(key="card-set-retrieval"):
         card_title("Retrieval", "How passages are selected as evidence for each analysis.")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 from dataclasses import dataclass, replace
 
@@ -41,16 +43,46 @@ def get_pipeline(workspace: str) -> RAGPipeline:
 
 
 @st.cache_resource(show_spinner=False)
-def _cached_llm(provider: str, model: str):
+def _cached_llm(provider: str, model: str, key_fingerprint: str):  # noqa: ARG001 – part of the cache key
     s = replace(settings(), llm_provider=provider, llm_model=model)
     return build_llm(s)
+
+
+def _key_fingerprint(provider: str) -> str:
+    """Short hash of the provider's API key, so a replaced key builds a fresh client."""
+    var = {"groq": "GROQ_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider)
+    key = os.getenv(var, "") if var else ""
+    return hashlib.sha256(key.encode()).hexdigest()[:12]
+
+
+def test_connection() -> tuple[bool, str]:
+    """Make a tiny real request to the provider. Returns (ok, html_message)."""
+    llm, err = get_llm()
+    if llm is None:
+        return False, esc_text(err or "No model configured.")
+    try:
+        llm.invoke("Reply with the single word OK.")
+    except Exception as exc:  # noqa: BLE001
+        return False, explain_llm_error(exc)
+    st.session_state.llm_auth_failed = False
+    return True, f"Connected to {esc_text(prefs().provider.title())} · {esc_text(prefs().model)}"
+
+
+def esc_text(value: str) -> str:
+    from documind.ui.components import esc
+
+    return esc(value)
 
 
 def get_llm():
     """Return (llm, error_message)."""
     p = prefs()
     try:
-        return _cached_llm(p.provider, p.model), None
+        fp = _key_fingerprint(p.provider)
+        if st.session_state.get("_key_fp") != fp:  # key changed: forget a previous rejection
+            st.session_state._key_fp = fp
+            st.session_state.llm_auth_failed = False
+        return _cached_llm(p.provider, p.model, fp), None
     except LLMConfigError as exc:
         return None, str(exc)
     except ImportError as exc:
