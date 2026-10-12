@@ -156,7 +156,6 @@ Settings come from environment variables (`.env`, shell, or Streamlit secrets). 
 | `TOP_K` / `SEARCH_TYPE` | `5` / `mmr` | Default retrieval behaviour |
 | `CHROMA_PERSIST_DIR` | `./data/chroma` | Index storage |
 | `CHROMA_COLLECTION` | `general` | Default workspace |
-| `DOCUMIND_USER_NAME` | — | Name shown in the greeting and profile menu |
 
 ## Testing
 

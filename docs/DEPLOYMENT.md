@@ -61,7 +61,6 @@ docker run -p 8501:8501 --env-file .env -v documind-data:/app/data documind
    ```toml
    GROQ_API_KEY = "gsk_..."
    LLM_PROVIDER = "groq"
-   DOCUMIND_USER_NAME = "Your Name"   # optional: greeting + profile menu
    ```
    `app.py` copies secrets into environment variables, so no code changes are needed.
 5. Deploy. Copy the `*.streamlit.app` URL into the README's **Live demo** link.

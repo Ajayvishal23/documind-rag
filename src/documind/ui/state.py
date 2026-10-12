@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 import streamlit as st
 
@@ -21,8 +20,8 @@ PAGES: dict[str, st.Page] = {}  # filled by app.py; used for st.switch_page
 
 @dataclass
 class Prefs:
-    display_name: str = field(default_factory=lambda: os.getenv("DOCUMIND_USER_NAME", ""))
-    role: str = "Administrator"
+    display_name: str = ""  # per-session and optional; the app greets everyone generically by default
+    role: str = "Member"
     provider: str = ""
     model: str = ""
     top_k: int = 5

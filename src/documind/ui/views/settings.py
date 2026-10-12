@@ -21,13 +21,13 @@ def render() -> None:
     general, model, retrieval, workspace = st.tabs(["General", "Assistant model", "Retrieval", "Workspace"])
 
     with general, st.container(key="card-set-general"):
-        card_title("Profile", "Shown in the top bar and on the dashboard.")
+        card_title("Profile", "Optional. Applies only to your current session; other users never see it.")
         with st.form("profile", border=False):
             c1, c2 = st.columns(2)
-            name = c1.text_input("Display name", value=p.display_name, max_chars=60)
+            name = c1.text_input("Display name", value=p.display_name, max_chars=60, placeholder="Optional")
             role = c2.text_input("Role", value=p.role, max_chars=60)
             if st.form_submit_button("Save changes", type="primary"):
-                p.display_name, p.role = name.strip() or p.display_name, role.strip() or p.role
+                p.display_name, p.role = name.strip(), role.strip() or p.role
                 st.toast("Profile updated", icon=":material/check_circle:")
                 st.rerun()
 
