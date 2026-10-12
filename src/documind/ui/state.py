@@ -55,6 +55,100 @@ def _key_fingerprint(provider: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:12]
 
 
+_NON_CHAT = ("whisper", "guard", "tts", "orpheus", "safeguard", "distil-whisper", "playai")
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _list_models(provider: str, key_fingerprint: str) -> list[str]:  # noqa: ARG001 – cache key
+    if provider == "groq" and os.getenv("GROQ_API_KEY"):
+        from groq import Groq
+
+        ids = [m.id for m in Groq(api_key=os.environ["GROQ_API_KEY"], timeout=8, max_retries=0).models.list().data]
+        return sorted(i for i in ids if not any(t in i.lower() for t in _NON_CHAT))
+    return []
+
+
+_OPENAI_SKIP = ("audio", "realtime", "transcribe", "tts", "image", "search", "embedding", "moderation", "instruct")
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _list_openai_models(key_fingerprint: str) -> list[str]:  # noqa: ARG001 – cache key
+    from openai import OpenAI
+
+    ids = [m.id for m in OpenAI(timeout=8, max_retries=0).models.list().data]
+    return sorted(i for i in ids if i.startswith(("gpt-", "o")) and not any(t in i for t in _OPENAI_SKIP))
+
+
+# Used when a provider's model list can't be fetched.
+FALLBACK_MODELS = {
+    "groq": ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"],
+    "openai": ["gpt-4o-mini", "gpt-4o"],
+}
+# Default ordering: the first available model becomes the default and the first fallback.
+PREFERRED = [
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
+    "gpt-4o-mini",
+    "openai/gpt-oss-20b",
+    "llama-3.1-8b-instant",
+    "gpt-4o",
+]
+
+
+def model_catalog() -> list[tuple[str, str]]:
+    """Every (provider, model) the configured API keys can use, best defaults first."""
+    out: list[tuple[str, str]] = []
+    if os.getenv("GROQ_API_KEY"):
+        out += [("groq", m) for m in (available_models("groq") or FALLBACK_MODELS["groq"])]
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            models = _list_openai_models(_key_fingerprint("openai"))
+        except Exception:  # noqa: BLE001
+            models = []
+        out += [("openai", m) for m in (models or FALLBACK_MODELS["openai"])]
+    p = prefs()
+    if p.provider == "ollama":
+        out.append(("ollama", p.model))
+    rank = {m: i for i, m in enumerate(PREFERRED)}
+    return sorted(out, key=lambda pm: rank.get(pm[1], len(rank)))
+
+
+def model_label(provider: str, model: str) -> str:
+    return f"{'OpenAI' if provider == 'openai' else provider.title()} · {model}"
+
+
+def ensure_valid_model() -> None:
+    """If the chosen model isn't offered by any configured key, switch to the best one that is."""
+    p, cat = prefs(), model_catalog()
+    if cat and (p.provider, p.model) not in cat:
+        p.provider, p.model = cat[0]
+
+
+def llm_for(provider: str, model: str):
+    """Return (llm, error_message) for an explicit provider/model."""
+    try:
+        return _cached_llm(provider, model, _key_fingerprint(provider)), None
+    except LLMConfigError as exc:
+        return None, str(exc)
+    except ImportError as exc:
+        return None, f"Provider package not installed ({exc})."
+
+
+def is_model_unavailable(exc: Exception) -> bool:
+    low = str(exc).lower()
+    return "model" in low and any(
+        t in low for t in ("not found", "does not exist", "decommissioned", "access", "model_not_found")
+    )
+
+
+def available_models(provider: str) -> list[str]:
+    """Chat models this API key can use (empty if unknown or the lookup fails)."""
+    try:
+        return _list_models(provider, _key_fingerprint(provider))
+    except Exception:  # noqa: BLE001 – the list is a convenience; fall back to free text
+        return []
+
+
 def test_connection() -> tuple[bool, str]:
     """Make a tiny real request to the provider. Returns (ok, html_message)."""
     llm, err = get_llm()
@@ -127,10 +221,11 @@ def explain_llm_error(exc: Exception) -> str:
         return "<b>The model provider's rate limit was reached.</b> Wait a minute and run the analysis again."
     if "connect" in low or "timeout" in low or "timed out" in low:
         return "<b>The model provider could not be reached.</b> Check your connection and try again."
-    if "model" in low and ("not found" in low or "does not exist" in low or "decommissioned" in low):
+    if is_model_unavailable(exc):
         return (
-            f"<b>The model “{esc(prefs().model)}” is not available.</b> Choose another model in "
-            "Settings → Assistant model."
+            f"<b>The model “{esc(prefs().model)}” is not available to this API key.</b> Open "
+            "Settings → Assistant model and pick one from the list of models your key can use."
+            f'<br><span style="font-size:.75rem;opacity:.8">Provider said: {esc(text[:300])}</span>'
         )
     return f"The analysis could not be completed: <code>{esc(text[:400])}</code>"
 

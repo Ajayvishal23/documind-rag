@@ -53,7 +53,7 @@ live inside long documents: legal, finance, healthcare, education, consulting an
 | **Context** | Follow-up questions are rewritten into standalone queries using recent analyses, so "what about the second agreement?" retrieves correctly |
 | **Workspaces** | One isolated vector collection and activity log per workspace; create and switch workspaces from the top bar |
 | **Governance** | Activity log with CSV export; remove documents or clear a workspace behind confirmation dialogs; API keys only from environment or secrets |
-| **Models** | Groq (hosted, free tier), OpenAI, or self-hosted Ollama, chosen per session in Settings |
+| **Multiple models** | Pick any model your keys can use (Groq, OpenAI, or self-hosted Ollama) right in the Analysis composer; the list is fetched live from each provider. If a model is unavailable the next one is used automatically, and each report shows which model wrote it |
 
 ## Architecture
 

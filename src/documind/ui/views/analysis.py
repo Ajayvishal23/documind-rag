@@ -42,6 +42,12 @@ def _report_meta(r: dict) -> str:
         f'<span class="dm-tag">{len(r["sources"])} reference{"s" if len(r["sources"]) != 1 else ""}</span>',
         f'<span class="dm-tag">{r["duration"]:.1f}s</span>',
     ]
+    if r.get("model"):
+        chips.append(f'<span class="dm-tag">{esc(r["model"])}</span>')
+    if r.get("fallback_from"):
+        chips.append(
+            f'<span class="dm-tag" title="Unavailable: {esc(", ".join(r["fallback_from"]))}">auto-switched model</span>'
+        )
     return f'<div class="dm-report-meta">{"".join(chips)}</div>'
 
 
@@ -89,10 +95,20 @@ def _render_report(r: dict) -> None:
             )
 
 
-def _run_analysis(question: str, scope_hashes: list[str] | None, scope_label: str, llm) -> None:
+def _candidates() -> list[tuple[str, str]]:
+    """The chosen model first, then other available models (same provider first) as fallbacks."""
+    p = state.prefs()
+    chosen = (p.provider, p.model)
+    rest = [m for m in state.model_catalog() if m != chosen]
+    rest.sort(key=lambda m: m[0] != p.provider)
+    return [chosen, *rest][:4]
+
+
+def _run_analysis(question: str, scope_hashes: list[str] | None, scope_label: str) -> None:
     p, reports = state.prefs(), state.reports()
     rid = (reports[-1]["id"] + 1) if reports else 1
     started = time.perf_counter()
+    used, skipped = None, []
     with st.container(key=f"report-{rid}"):
         html_block(
             f'<div class="dm-report-label"><span class="id">Analysis {rid:02d}</span><span>·</span>'
@@ -101,24 +117,41 @@ def _run_analysis(question: str, scope_hashes: list[str] | None, scope_label: st
         )
         body = st.empty()
         body.html(skeleton(4, "Searching documents and gathering evidence…"))
-        try:
-            handle = state.pipeline().ask_stream(
-                question, state.memory(), scope_hashes, llm=llm, top_k=p.top_k, search_type=p.search_type
-            )
-            body.html(skeleton(3, f"Drafting analysis from {len(handle.hits)} passages…"))
-            parts: list[str] = []
-            for tok in handle.tokens:
-                parts.append(tok)
-                body.markdown(format_answer("".join(parts)) + " ▍", unsafe_allow_html=True)
-            full = "".join(parts)
-            result = handle.finalize(full)
-            st.session_state.llm_auth_failed = False
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Analysis failed")
+        last_exc: Exception | None = None
+        for provider, model in _candidates():
+            llm, err = state.llm_for(provider, model)
+            if llm is None:
+                last_exc = RuntimeError(err or "Model not configured")
+                continue
+            try:
+                handle = state.pipeline().ask_stream(
+                    question, state.memory(), scope_hashes, llm=llm, top_k=p.top_k, search_type=p.search_type
+                )
+                body.html(skeleton(3, f"Drafting analysis with {model} from {len(handle.hits)} passages…"))
+                parts: list[str] = []
+                for tok in handle.tokens:
+                    parts.append(tok)
+                    body.markdown(format_answer("".join(parts)) + " ▍", unsafe_allow_html=True)
+                full = "".join(parts)
+                result = handle.finalize(full)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Analysis with %s/%s failed: %s", provider, model, exc)
+                last_exc = exc
+                if state.is_model_unavailable(exc):
+                    skipped.append(model)
+                    body.html(skeleton(3, f"{model} is unavailable — trying another model…"))
+                    continue
+                break  # auth, rate-limit or network errors won't be fixed by another model
+            used = (provider, model)
+            break
+
+        if used is None:
             body.empty()
-            callout(state.explain_llm_error(exc), "warning")
+            callout(state.explain_llm_error(last_exc or RuntimeError("No model available")), "warning")
             return
 
+    st.session_state.llm_auth_failed = False
+    p.provider, p.model = used  # remember the model that worked
     duration = time.perf_counter() - started
     reports.append(
         {
@@ -129,12 +162,17 @@ def _run_analysis(question: str, scope_hashes: list[str] | None, scope_label: st
             "sources": result.sources,
             "scope": scope_label,
             "duration": duration,
+            "model": used[1],
+            "fallback_from": skipped,
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
     )
     st.session_state.selected_report = rid
     state.activity().record(
-        "analysis", question[:120], f"{len(result.sources)} references · {scope_label}", duration=round(duration, 2)
+        "analysis",
+        question[:120],
+        f"{len(result.sources)} references · {scope_label} · {used[1]}",
+        duration=round(duration, 2),
     )
     st.rerun()
 
@@ -210,9 +248,22 @@ def render() -> None:
         with st.container(key="card-composer"):
             names = {f["file_hash"]: f["file_name"] for f in files}
             scope = [h for h in st.session_state.analysis_scope if h in names]
-            scope = st.multiselect(
+            sc, mc = st.columns([3, 2])
+            scope = sc.multiselect(
                 "Scope", list(names), default=scope, format_func=names.get, placeholder=f"All documents ({len(files)})"
             )
+            catalog = state.model_catalog()
+            if catalog:
+                state.ensure_valid_model()
+                p = state.prefs()
+                picked = mc.selectbox(
+                    "Model",
+                    catalog,
+                    index=catalog.index((p.provider, p.model)),
+                    format_func=lambda m: state.model_label(*m),
+                    help="Models available to your API keys. If a model is unavailable, the next one is used.",
+                )
+                p.provider, p.model = picked
             st.session_state.analysis_scope = scope
             scope_label = (
                 "All documents" if not scope else names[scope[0]] if len(scope) == 1 else f"{len(scope)} documents"
@@ -245,7 +296,7 @@ def render() -> None:
 
         st.space("small")
         if submitted and question.strip():
-            _run_analysis(question.strip(), scope or None, scope_label, llm)
+            _run_analysis(question.strip(), scope or None, scope_label)
 
         if reports:
             for r in reversed(reports):

@@ -55,7 +55,19 @@ def render() -> None:
             format_func=PROVIDER_LABELS.get,
         )
         default_model = p.model if provider == p.provider else DEFAULT_MODELS[provider]
-        model_name = c2.text_input("Model", value=default_model, key=f"model-{provider}")
+        options = state.available_models(provider)
+        if options:
+            if default_model not in options:
+                default_model = DEFAULT_MODELS[provider] if DEFAULT_MODELS[provider] in options else options[0]
+            model_name = c2.selectbox(
+                "Model",
+                options,
+                index=options.index(default_model),
+                key=f"model-{provider}",
+                help="Models available to your API key",
+            )
+        else:
+            model_name = c2.text_input("Model", value=default_model, key=f"model-{provider}")
         if (provider, model_name) != (p.provider, p.model):
             p.provider, p.model = provider, model_name.strip() or DEFAULT_MODELS[provider]
         llm, err = state.get_llm()
