@@ -82,3 +82,27 @@ def test_analysis_produces_report_with_references(app_env, solar_pdf):
     assert "dm-cite" in out  # styled citation marker in report card
     assert "Analysis 01" in out  # report card header
     assert "solar.pdf" in out and "Page 1" in out  # references panel
+
+
+def test_rejected_api_key_shows_actionable_message(app_env, solar_pdf, monkeypatch):
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+    import documind.ui.state
+
+    class RejectingLLM(GenericFakeChatModel):
+        def _stream(self, *a, **k):
+            raise RuntimeError("Error code: 401 - {'error': {'message': 'Invalid API Key', 'code': 'invalid_api_key'}}")
+
+        def _generate(self, *a, **k):
+            raise RuntimeError("Error code: 401 - invalid_api_key")
+
+    monkeypatch.setattr(documind.ui.state, "build_llm", lambda *a, **k: RejectingLLM(messages=iter([])))
+    _seed(solar_pdf)
+    at = _open("analysis")
+    at.text_area(key="question_box").set_value("Summarise")
+    at.button[[b.label for b in at.button].index("Run analysis")].click()
+    at.run()
+    assert not at.exception, at.exception
+    out = _texts(at)
+    assert "API key was rejected" in out and "GROQ_API_KEY" in out
+    assert at.session_state["llm_auth_failed"] is True

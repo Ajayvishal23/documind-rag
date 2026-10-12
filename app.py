@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 try:
     for _k, _v in st.secrets.items():
         if isinstance(_v, str):
-            os.environ.setdefault(_k, _v)
+            os.environ.setdefault(_k, _v.strip())  # stray spaces/newlines break API keys
 except Exception:  # noqa: BLE001 – no secrets file locally is fine
     pass
 

@@ -112,10 +112,11 @@ def _run_analysis(question: str, scope_hashes: list[str] | None, scope_label: st
                 body.markdown(format_answer("".join(parts)) + " ▍", unsafe_allow_html=True)
             full = "".join(parts)
             result = handle.finalize(full)
+            st.session_state.llm_auth_failed = False
         except Exception as exc:  # noqa: BLE001
             logger.exception("Analysis failed")
             body.empty()
-            callout(f"The analysis could not be completed: <code>{esc(exc)}</code>", "warning")
+            callout(state.explain_llm_error(exc), "warning")
             return
 
     duration = time.perf_counter() - started

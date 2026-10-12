@@ -146,7 +146,7 @@ def render() -> None:
     with right, st.container(key="card-overview"):
         card_title("Workspace overview")
         status = badge("Ready", "success") if n_docs else badge("Awaiting documents", "warning")
-        model_status = badge("Connected", "success") if llm else badge("Not configured", "danger")
+        model_status = state.model_status_badge()
         s = state.settings()
         html_block(
             kv_list(

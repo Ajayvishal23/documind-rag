@@ -57,6 +57,52 @@ def get_llm():
         return None, f"Provider package not installed ({exc})."
 
 
+def model_status_badge() -> str:
+    """Status shown on the dashboard and in Settings."""
+    from documind.ui.components import badge
+
+    llm, _ = get_llm()
+    if llm is None:
+        return badge("Not configured", "danger")
+    if st.session_state.get("llm_auth_failed"):
+        return badge("Key rejected", "danger")
+    return badge("Key configured", "success")
+
+
+KEY_HELP = {
+    "groq": ("GROQ_API_KEY", "https://console.groq.com/keys"),
+    "openai": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys"),
+}
+
+
+def explain_llm_error(exc: Exception) -> str:
+    """Turn provider exceptions into an actionable, user-facing message (HTML-safe)."""
+    from documind.ui.components import esc
+
+    text = str(exc)
+    low = text.lower()
+    provider = prefs().provider
+    var, url = KEY_HELP.get(provider, ("the provider API key", ""))
+    if "401" in low or "invalid_api_key" in low or "invalid api key" in low or "unauthorized" in low:
+        st.session_state.llm_auth_failed = True
+        where = f' Create a new key at <a href="{url}" target="_blank">{url}</a>.' if url else ""
+        return (
+            f"<b>The {esc(provider.title())} API key was rejected.</b> Update <code>{var}</code> in your "
+            "environment or Streamlit secrets (Manage app → Settings → Secrets), save, then reboot the app."
+            f"{where}"
+        )
+    if "429" in low or "rate limit" in low or "rate_limit" in low:
+        return "<b>The model provider's rate limit was reached.</b> Wait a minute and run the analysis again."
+    if "connect" in low or "timeout" in low or "timed out" in low:
+        return "<b>The model provider could not be reached.</b> Check your connection and try again."
+    if "model" in low and ("not found" in low or "does not exist" in low or "decommissioned" in low):
+        return (
+            f"<b>The model “{esc(prefs().model)}” is not available.</b> Choose another model in "
+            "Settings → Assistant model."
+        )
+    return f"The analysis could not be completed: <code>{esc(text[:400])}</code>"
+
+
 def activity(workspace: str | None = None) -> ActivityLog:
     s = settings()
     return ActivityLog(s.persist_dir.parent / "activity", workspace or current_workspace())

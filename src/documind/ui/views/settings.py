@@ -6,7 +6,7 @@ import streamlit as st
 
 from documind.config import DEFAULT_MODELS
 from documind.ui import actions, state
-from documind.ui.components import badge, card_title, esc, html_block, human_size, kv_list, page_header, workspace_label
+from documind.ui.components import card_title, esc, html_block, human_size, kv_list, page_header, workspace_label
 
 PROVIDER_LABELS = {"groq": "Groq (hosted, free tier)", "openai": "OpenAI", "ollama": "Ollama (self-hosted)"}
 
@@ -53,7 +53,7 @@ def render() -> None:
         html_block(
             kv_list(
                 [
-                    ("Status", badge("Connected", "success") if llm else badge("Not configured", "danger")),
+                    ("Status", state.model_status_badge()),
                     ("Provider", esc(PROVIDER_LABELS.get(p.provider, p.provider))),
                     ("Model", esc(p.model)),
                 ]
