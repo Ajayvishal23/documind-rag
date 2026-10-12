@@ -16,7 +16,7 @@ Streamlit, LangChain, ChromaDB and Sentence-Transformers.
 [Live demo](#) · [Architecture](docs/ARCHITECTURE.md) · [Deployment](docs/DEPLOYMENT.md)
 
 <!-- Replace with a real screenshot / GIF: docs/assets/demo.gif -->
-<img src="docs/assets/demo.gif" alt="DocuMind demo" width="760">
+<!-- <img src="docs/assets/demo.gif" alt="DocuMind demo" width="760"> -->
 
 </div>
 
@@ -67,7 +67,7 @@ Full design notes, trade-offs and data flow: **[docs/ARCHITECTURE.md](docs/ARCHI
 ## 🚀 Quick start
 
 ```bash
-git clone https://github.com/<your-username>/documind-rag.git
+git clone https://github.com/Ajayvishal23/documind-rag.git
 cd documind-rag
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -172,5 +172,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-Built by <b>Ajay Vishal M V</b> · <a href="https://www.linkedin.com/in/your-profile">LinkedIn</a> · <a href="https://github.com/your-username">GitHub</a>
+Built by <b>Ajay Vishal M V</b> · <a href="https://www.linkedin.com/in/your-profile">LinkedIn</a> · <a href="https://github.com/Ajayvishal23">GitHub</a>
 </div>

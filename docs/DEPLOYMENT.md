@@ -98,7 +98,7 @@ volume at `/app/data`.
 **VM (EC2 / GCP / Azure / DigitalOcean):**
 ```bash
 sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin
-git clone https://github.com/<you>/documind-rag.git && cd documind-rag
+git clone https://github.com/Ajayvishal23/documind-rag.git && cd documind-rag
 cp .env.example .env && nano .env
 sudo docker compose up -d --build
 ```
