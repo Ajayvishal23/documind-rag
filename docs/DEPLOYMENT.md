@@ -130,7 +130,8 @@ location / {
 |---|---|
 | `GROQ_API_KEY is not set` | Add it to `.env` or Streamlit secrets; restart the app |
 | "no extractable text" on upload | The PDF is scanned images — run OCR first (e.g. `ocrmypdf in.pdf out.pdf`) |
-| App killed / out of memory on free host | Use CPU torch, keep MiniLM, lower `CHUNK_SIZE` batch, or upgrade instance |
+| App killed / out of memory on free host | `requirements.txt` already installs CPU-only PyTorch; keep the MiniLM embedding model, or upgrade the instance |
+| "DocuMind could not start" screen | The message shown is the real cause. Copy it from the screen or the Streamlit Cloud logs (Manage app → logs) |
 | Slow first question | Embedding model loading; cached after the first run |
 | "Chroma requires sqlite3 >= 3.35" | Handled automatically: `pysqlite3-binary` is installed on Linux and swapped in by `documind/compat.py` when the system SQLite is too old |
 | Answers ignore new uploads | Click **Index documents** after selecting files |
