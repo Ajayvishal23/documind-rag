@@ -165,3 +165,26 @@ flowchart LR
   citation chips.
 - **Per-session preferences** (model, top-k, strategy, display name) are passed into the shared cached
   pipeline per call, never written to it.
+
+## 8. Multi-model support
+
+```mermaid
+flowchart LR
+    K[API keys in env / secrets] --> CAT[model_catalog<br/>live list per provider<br/>cached 10 min]
+    CAT --> PICK[Model picker<br/>in Analysis composer]
+    PICK --> RUN{Run analysis}
+    RUN -->|ok| REP[Report card<br/>shows model used]
+    RUN -->|model unavailable| NEXT[Try next model<br/>same provider first, max 4]
+    NEXT --> RUN
+    RUN -->|bad key / rate limit / network| ERR[Actionable error<br/>no retry]
+```
+
+- **Catalog.** Groq and OpenAI model lists are fetched live with the configured keys (8 s timeout,
+  no retries) and filtered to chat models; a built-in list is used if the lookup fails. Ollama
+  appears when selected in Settings.
+- **Fallback.** Only "model unavailable" errors (decommissioned, no access, not found) trigger a
+  fallback, since another model can fix those. Authentication, rate-limit and network errors stop
+  immediately with a specific message. The model that worked is remembered for the session.
+- **Key changes.** Secrets are re-read on every run and a hash of each key is part of the client
+  cache key, so a replaced key takes effect without restarting the app.
+- **Diagnostics.** Settings → Assistant model → *Test connection* makes a one-token request.

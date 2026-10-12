@@ -102,7 +102,7 @@ def _sidebar() -> None:
         )
         st.html(
             '<div class="dm-side-foot"><a href="https://github.com/Ajayvishal23/documind-rag" target="_blank">'
-            "Documentation</a> · v2.0</div>"
+            "Documentation</a> · v2.1</div>"
         )
 
 
