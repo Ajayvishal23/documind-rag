@@ -13,7 +13,7 @@ Streamlit, LangChain, ChromaDB and Sentence-Transformers.
 ![ChromaDB](https://img.shields.io/badge/vector%20DB-ChromaDB-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-[Live demo](#) · [Architecture](docs/ARCHITECTURE.md) · [Deployment](docs/DEPLOYMENT.md)
+[**🚀 Live demo**](https://ajayvishal23-documind-rag-app-f2eb1g.streamlit.app/) · [Architecture](docs/ARCHITECTURE.md) · [Deployment](docs/DEPLOYMENT.md)
 
 <!-- Replace with a real screenshot / GIF: docs/assets/demo.gif -->
 <!-- <img src="docs/assets/demo.gif" alt="DocuMind demo" width="760"> -->
